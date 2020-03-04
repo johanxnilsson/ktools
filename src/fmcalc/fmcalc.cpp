@@ -110,9 +110,237 @@ bool operator<(const fmxref_key& lhs, const fmxref_key& rhs)
 	return lhs.layer_id < rhs.layer_id;		
 }
 
+void fmcalc::compute_item_proportions_part1(std::vector<std::vector<std::vector <LossRec>>>& agg_vecs, const std::vector<OASIS_FLOAT>& guls, unsigned int level_, unsigned int layer_, unsigned int previous_layer_, bool allowzeros)
+{
+	std::vector<OASIS_FLOAT> items_prop(guls.size(), 0);
+	int from_level = 1;
+	int to_level = agg_vecs.size();
+	if (allocrule_ == 3) {
+		from_level = level_;
+		to_level = from_level + 1;
+	}
+	for (unsigned int level = 1; level < to_level; level++) {
+		vector <LossRec>& agg_vec = agg_vecs[level][layer_];
+		vector <LossRec>& previous_agg_vec = agg_vecs[level - 1][layer_];
+		OASIS_FLOAT loss_total = 0;
+		OASIS_FLOAT retained_loss_total = 0;
+		OASIS_FLOAT previous_proportions_total = 0;
+		auto p_iter = previous_agg_vec.begin();
+		while (p_iter != previous_agg_vec.end()) {
+			previous_proportions_total += p_iter->proportion;
+			p_iter++;
+		}
+		auto iter = agg_vec.begin();
+		while (iter != agg_vec.end()) {
+			if (allowzeros == true || iter->loss > 0 || iter->retained_loss > 0 ) {
+				OASIS_FLOAT total = 0;
+				if (iter->item_idx) {
+					if (iter->item_prop == nullptr) {
+						iter->item_prop = std::make_shared<std::vector<OASIS_FLOAT>>(std::vector<OASIS_FLOAT>((iter->item_idx)->size(), 0));
+					}
+					else {
+						//(iter->item_prop)->resize((iter->item_idx)->size(), 0);
+						iter->item_prop = std::make_shared<std::vector<OASIS_FLOAT>>(std::vector<OASIS_FLOAT>((iter->item_idx)->size(), 0));
+					}
+					for (int idx : *(iter->item_idx)) {	// if this is the first level there should only be one item_idx
+						total += guls[idx];
+					}
+				}
+				iter->gul_total = total;
+				loss_total += iter->loss;
+				retained_loss_total += iter->retained_loss;
+			}
+			else {
+				iter->gul_total = 0;
+				retained_loss_total += iter->retained_loss;
+			}
+			iter++;
+		}
+		if (loss_total <= 0 && previous_proportions_total > 0.01) {
+			// check level and layer_
+			// if there is no loss_total loss just copy previous level proportions
+			auto iter = agg_vec.begin();		// loop through again to work out proportion
+			auto previous_iter = previous_agg_vec.begin();		// loop through again to work out proportion
+			while (iter != agg_vec.end()) {
+				if (iter->item_idx) {
+					for (int idx : *(iter->item_idx)) {
+						std::vector<OASIS_FLOAT>& v = *(iter->item_prop);
+						iter->proportion = iter->proportion + items_prop[idx];
+					}
+				}
+				iter++;
+			}
+		}
+		else {
+			iter = agg_vec.begin();		// loop thru again to work out proportion
+			int agg_vec_idx = 0;
+			while (iter != agg_vec.end()) {
+				if (iter->loss > 0 && loss_total > 0) {
+					iter->proportion = iter->loss / loss_total;
+				}
+				else {
+					iter->proportion = 0;
+				}
+				if (level == 1) {
+					OASIS_FLOAT total = 0;
+					if (iter->item_idx) {
+						for (int idx : *(iter->item_idx)) {
+							total += guls[idx];
+						}
+					}
+					int i = 0;
+					if (total > 0) {
+						for (int idx : *(iter->item_idx)) {
+							if (iter->item_prop != nullptr) {
+								std::vector<OASIS_FLOAT>& v = *(iter->item_prop);
+								v[i] = guls[idx] / iter->gul_total;
+							}
+							items_prop[idx] = (guls[idx] / total) * iter->proportion;
+							i++;
+						}
+					}
+				}
+				else {
+					OASIS_FLOAT prop_total = 0;
+					if (iter->item_idx) {
+						for (int idx : *(iter->item_idx)) {
+							prop_total += items_prop[idx];
+						}
+					}
+					int i = 0;
+					if (prop_total > 0) {
+						if (iter->item_idx) {
+							for (int idx : *(iter->item_idx)) {
+								if (iter->item_prop != nullptr) {
+									std::vector<OASIS_FLOAT>& v = *(iter->item_prop);
+									v[i] = items_prop[idx] / prop_total;
+								}
+								items_prop[idx] = (items_prop[idx] / prop_total) * iter->proportion;
+								i++;
+							}
+						}
+					}
+					else {
+						if (iter->item_idx) {
+							iter->item_prop = previous_agg_vec[agg_vec_idx].item_prop;
+							//iter->limit_surplus = 5678;
+						}
+					}
+				}
+				iter++;
+				agg_vec_idx++;
+			}
+		}
+	}
+}
+void fmcalc::compute_item_proportions_part2(std::vector<std::vector<std::vector <LossRec>>>& agg_vecs, const std::vector<OASIS_FLOAT>& guls, unsigned int level_, unsigned int layer_, unsigned int previous_layer_, bool allowzeros)
+{
+	if (previous_layer_ < layer_) {
+		vector <LossRec>& prev_agg_vec = agg_vecs[level_][1];
+		vector <LossRec>& current_agg_vec = agg_vecs[level_][layer_];
+		size_t iMax = prev_agg_vec.size();
+		if (current_agg_vec.size() > iMax) iMax = current_agg_vec.size();
+		for (int i = 0; i < iMax; i++) {
+			current_agg_vec[i].proportion = prev_agg_vec[i].proportion;
+			current_agg_vec[i].item_prop = prev_agg_vec[i].item_prop;
+		}
+	}
+	else {
+		vector <LossRec>& prev_agg_vec = agg_vecs[level_ - 1][previous_layer_];
+		vector <LossRec>& prev_agg_vec_base = agg_vecs[level_ - 1][1];
+		for (int i = 0; i < prev_agg_vec.size(); i++) {
+			//if (prev_agg_vec[i].item_prop->size() == 0) {
+			if (prev_agg_vec[i].item_prop == nullptr) {
+				//prev_agg_vec[i].loss = prev_agg_vec_base[i].loss;
+				prev_agg_vec[i].item_prop = prev_agg_vec_base[i].item_prop;
+			}
+		}
+		//
+
+		std::vector<int> v(guls.size(), -1);
+		//v.resize(guls.size(), -1);
+		auto iter = prev_agg_vec.begin();
+		int j = 0;
+
+		while (iter != prev_agg_vec.end()) {
+			if (iter->item_idx) {
+				auto it = iter->item_idx->begin();
+				while (it != iter->item_idx->end()) {
+					v[*it] = j;
+					it++;
+				}
+			}
+			j++;
+			iter++;
+		}
+		for (int y = 0; y < agg_vecs[level_][layer_].size(); y++) {
+			if (agg_vecs[level_][layer_][y].item_idx != nullptr) {
+				auto it = agg_vecs[level_][layer_][y].item_idx->begin();
+				// 1 create an item id  to prev_agg_vec index
+				// 2 use below loop to create a set which will then be used to iterate and get previous_gul_total
+				std::unordered_set<int> s;
+				while (it != agg_vecs[level_][layer_][y].item_idx->end()) {
+					s.insert(v[*it]);
+					//prev_gul_total += prev_agg_vec[*it].loss;
+					it++;
+				}
+
+				OASIS_FLOAT prev_gul_total = 0;
+				auto s_iter = s.begin();
+				while (s_iter != s.end()) {
+					prev_gul_total += prev_agg_vec[*s_iter].loss;
+					s_iter++;
+				}
+
+				// agg_vecs[level_][layer_][y].loss = prev_gul_total;
+				it = agg_vecs[level_][layer_][y].item_idx->begin();
+				while (it != agg_vecs[level_][layer_][y].item_idx->end()) {
+					if (agg_vecs[level_][layer_][y].item_prop == nullptr) {
+						agg_vecs[level_][layer_][y].item_prop = std::make_shared<std::vector<OASIS_FLOAT>>(std::vector<OASIS_FLOAT>());
+					}
+					if (prev_gul_total > 0) {
+						int j = -1;
+						const std::vector<int>& z = *(prev_agg_vec[v[*it]].item_idx);
+						for (int i = 0; i < z.size(); i++) {
+							if (z[i] == *it) {
+								j = i;
+								break;
+							}
+						}
+						// this is recomputing the first layers proportions
+						if (j > -1) {
+							if (prev_agg_vec[v[*it]].loss > 0) agg_vecs[level_][layer_][y].item_prop->push_back(prev_agg_vec[v[*it]].loss * prev_agg_vec[v[*it]].item_prop->at(j) / prev_gul_total);
+							else agg_vecs[level_][layer_][y].item_prop->push_back(0);
+						}
+						else {
+							agg_vecs[level_][layer_][y].item_prop->push_back(0);
+						}
+
+					}
+					else {
+						agg_vecs[level_][layer_][y].item_prop->push_back(0);
+					}
+					it++;
+				}
+			}
+		}
+	}
+	return;
+}
+
+void fmcalc::compute_item_proportions(std::vector<std::vector<std::vector <LossRec>>>& agg_vecs, const std::vector<OASIS_FLOAT>& guls, unsigned int level_, unsigned int layer_, unsigned int previous_layer_, bool allowzeros)
+{
+
+	if (layer_ == 1) {
+		compute_item_proportions_part1(agg_vecs, guls, level_, layer_, previous_layer_, allowzeros);
+	}
+	else {
+		compute_item_proportions_part2(agg_vecs, guls, level_, layer_, previous_layer_, allowzeros);
+	}
+}
 //
 // 
-void fmcalc::compute_item_proportions(std::vector<std::vector<std::vector <LossRec>>> &agg_vecs, const std::vector<OASIS_FLOAT> &guls, unsigned int level_, unsigned int layer_,unsigned int previous_layer_,bool allowzeros)
+void fmcalc::compute_item_proportions_original(std::vector<std::vector<std::vector <LossRec>>> &agg_vecs, const std::vector<OASIS_FLOAT> &guls, unsigned int level_, unsigned int layer_,unsigned int previous_layer_,bool allowzeros)
 {
 
 	if (layer_ == 1) {
@@ -1078,15 +1306,33 @@ void fmcalc::init_itemtotiv()
 
 }
 
-
+bool fmcalc::fileexists(const std::string& name) {
+	if (FILE* file = fopen(name.c_str(), "rb")) {
+		fclose(file);
+		return true;
+	}
+	else {
+		return false;
+	}
+}
 void fmcalc::init_fmxref()
 {
 	FILE *fin = NULL;
-	std::string file = FMXREF_FILE;
+	std::string file = FMXREF_FILE_A0;
 	if (inputpath_.length() > 0) {
 		file = inputpath_ + file.substr(5);
 	}
-	fin = fopen(file.c_str(), "rb");
+	if (allocrule_ == 0  && fileexists(file) ) {		
+		fin = fopen(file.c_str(), "rb");
+	}
+	else {
+		file = FMXREF_FILE;
+		if (inputpath_.length() > 0) {
+			file = inputpath_ + file.substr(5);
+		}
+		fin = fopen(file.c_str(), "rb");
+	}
+	
 	if (fin == NULL) {
 		fprintf(stderr, "FATAL: %s: cannot open %s\n", __func__, file.c_str());
 		exit(EXIT_FAILURE);

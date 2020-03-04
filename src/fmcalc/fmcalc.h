@@ -53,6 +53,7 @@ public:
 		{ init(maxRunLevel); }	
 	void doit();
 private:
+	bool fileexists(const std::string& name);
 	void setmaxlevel(int maxlevel) { if (maxlevel > -1) maxLevel_ = maxlevel; }
 	void dofm(int event_id_, const std::vector<int> &items_, std::vector<std::vector<OASIS_FLOAT>> &event_guls_);
 	inline OASIS_FLOAT gettiv(int item_id) { return item_to_tiv_[item_id]; }
@@ -88,7 +89,10 @@ private:
 	void addtcrow(const fm_policyTC &f);
 	bool loadcoverages(std::vector<OASIS_FLOAT> &coverages);
 	bool gulhasvalue(const std::vector<OASIS_FLOAT> &gul) const;
-	void compute_item_proportions(std::vector<std::vector<std::vector <LossRec>>> &agg_vecs, const std::vector<OASIS_FLOAT> &guls,unsigned int level_, unsigned int layer_,unsigned int previous_layer_, bool allowzeros);	
+	void compute_item_proportions_part1(std::vector<std::vector<std::vector <LossRec>>>& agg_vecs, const std::vector<OASIS_FLOAT>& guls, unsigned int level_, unsigned int layer_, unsigned int previous_layer_, bool allowzeros);
+	void compute_item_proportions_part2(std::vector<std::vector<std::vector <LossRec>>>& agg_vecs, const std::vector<OASIS_FLOAT>& guls, unsigned int level_, unsigned int layer_, unsigned int previous_layer_, bool allowzeros);
+	void compute_item_proportions_original(std::vector<std::vector<std::vector <LossRec>>> &agg_vecs, const std::vector<OASIS_FLOAT> &guls,unsigned int level_, unsigned int layer_,unsigned int previous_layer_, bool allowzeros);	
+	void compute_item_proportions(std::vector<std::vector<std::vector <LossRec>>>& agg_vecs, const std::vector<OASIS_FLOAT>& guls, unsigned int level_, unsigned int layer_, unsigned int previous_layer_, bool allowzeros);
 	inline void dofmcalc_r(std::vector<std::vector<int>>  &aggid_to_vectorlookups_, std::vector<std::vector<std::vector <LossRec>>> &agg_vecs_, 
 		int level_, int max_level_,	std::map<int, std::vector<fmlevelrec> > &outmap_, 
 		int sidx_, const std::vector<std::vector<std::vector<policytcvidx>>> &avxs_, int layer_,
