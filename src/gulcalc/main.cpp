@@ -84,6 +84,7 @@ void help()
 
 int main(int argc, char *argv[])
 {
+	char * _emergencyMemory = new char[16384];
 	int opt;
 	gulcalcopts gopt;
 	gopt.loss_threshold = 0.000001;
@@ -186,7 +187,9 @@ int main(int argc, char *argv[])
 		logprintf(progname, "INFO", "starting process..\n");
 		doit(gopt);
 		logprintf(progname, "INFO", "finishing process..\n");
+		delete[] _emergencyMemory;
 	}catch (std::bad_alloc&) {
+			delete[] _emergencyMemory;
 			fprintf(stderr, "FATAL:%s: Memory allocation failed\n", progname);
 			exit(EXIT_FAILURE);
 	}
