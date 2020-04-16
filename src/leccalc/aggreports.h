@@ -70,7 +70,7 @@ private:
 	void doreturnperiodout(int handle, size_t &nextreturnperiod_index, OASIS_FLOAT &last_return_period, OASIS_FLOAT &last_loss,
 		OASIS_FLOAT current_return_period, OASIS_FLOAT current_loss, int summary_id, int type);
 public:
-	void loadperiodtoweigthing();
+	void loadperiodtoweighting();
 	void outputOccFulluncertainty();
 	void outputAggFulluncertainty();
 	void outputOccWheatsheaf();

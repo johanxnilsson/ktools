@@ -107,7 +107,7 @@ private:
 	void indexevents(const std::string& fullfilename, std::string& filename);
 	void load_event_to_summary_index(const std::string& subfolder);
 	void initsameplsize(const std::string &path);
-	void loadperiodtoweigthing();
+	void loadperiodtoweighting();
 	void process_summaryfilew(const std::string &filename);
 	void debug_process_summaryfile(const std::string &filename);
 	void do_calc_end_new();

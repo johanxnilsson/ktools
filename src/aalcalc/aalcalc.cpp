@@ -50,7 +50,7 @@ bool operator<(const period_map_key& lhs, const period_map_key& rhs)
 // we must have entry for every return period!!!
 // otherwise no way to pad missing ones
 // Weightings should be between zero and 1 and should sum to one 
-void aalcalc::loadperiodtoweigthing()
+void aalcalc::loadperiodtoweighting()
 {
 	FILE *fin = fopen(PERIODS_FILE, "rb");
 	if (fin == NULL) return;
@@ -62,6 +62,17 @@ void aalcalc::loadperiodtoweigthing()
 		total_weighting += p.weighting;
 		periodstoweighting_[p.period_no] = (OASIS_FLOAT)p.weighting;		
 		i = fread(&p, sizeof(Periods), 1, fin);
+	}
+
+	// Exit with error message if period weights sum to 0	
+	// Otherwise normalise period weights if required
+	if (total_weighting == 0) {
+		fprintf(stderr, "Error: Total Wieghting = 0, please check periods file\n");
+		exit(-1);
+	} else if (total_weighting != 1) {
+		for (std::map<int, double>::iterator iter=periodstoweighting_.begin(); iter!=periodstoweighting_.end(); ++iter) {
+			periodstoweighting_[iter->first] = iter->second / total_weighting;
+		}
 	}
 
 }
@@ -453,7 +464,7 @@ void aalcalc::doit(const std::string& subfolder)
 	initsameplsize(path);
 	getmaxsummaryid(path);
 	loadoccurrence();
-	loadperiodtoweigthing();	// move this to after the samplesize_ variable has been set i.e.  after reading the first 8 bytes of the first summary file
+	loadperiodtoweighting();	// move this to after the samplesize_ variable has been set i.e.  after reading the first 8 bytes of the first summary file
 	char line[4096];
 	vec_sample_sum_loss_.resize(((no_of_periods_+1) * (samplesize_+1)) + 1);
 	vec_sample_aal_.resize(max_summary_id_ + 1);

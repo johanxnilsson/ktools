@@ -104,7 +104,7 @@ aggreports::aggreports(int totalperiods, int maxsummaryid, std::map<outkey2, OAS
 // we must have entry for every return period!!!
 // otherwise no way to pad missing ones
 // The weighting should already be normalized - i.e range within 0 and 1 and they should total upto one.
-void aggreports::loadperiodtoweigthing()
+void aggreports::loadperiodtoweighting()
 {
 	FILE *fin = fopen(PERIODS_FILE, "rb");
 	if (fin == NULL) return;
@@ -117,6 +117,18 @@ void aggreports::loadperiodtoweigthing()
 		periodstoweighting_[p.period_no] = p.weighting;
 		i = fread(&p, sizeof(Periods), 1, fin);
 	}
+
+	// Exit with error message if period weights sum to 0
+	// Otherwise normalise period weights if required
+	if (total_weighting == 0) {
+		fprintf(stderr, "Error: Total Weighting = 0, please check periods file\n");
+		exit(-1);
+	} else if (total_weighting != 1) {
+        	for (std::map<int, double>::iterator iter=periodstoweighting_.begin(); iter!=periodstoweighting_.end(); ++iter) {
+	                periodstoweighting_[iter->first] = iter->second / total_weighting;
+		}
+        }
+
 	// If we are going to have weightings we should have them for all periods
 	//if (periodstowighting_.size() != totalperiods_) {
 	//	fprintf(stderr, "Total number of periods in %s does not match the number of periods in %s\n", PERIODS_FILE, OCCURRENCE_FILE);
